@@ -1,87 +1,88 @@
 // ==============================================================================
 // File        : tb/tb_top.sv
-// Description : Top-level testbench. Instantiates the DUT, connects the physical
-//               interface, and kicks off the OOP-based verification environment.
+// Description : Top-level testbench module for AHB VIP.
+//               Connects physical signals and kicks off the UVM framework.
 // ==============================================================================
 
 `timescale 1ns/1ps
 
-// Include the VIP package exactly once
-`include "../vip/ahb_pkg.sv"
+module tb_top;
 
-module tb_top; 
-    // Import all classes from the package namespace
+    // Import UVM macros and your AHB package classes
+    import uvm_pkg::*;
+    `include "uvm_macros.svh"
     import ahb_pkg::*;
-    
+
     // ==========================================================================
-    // Hardware Signals and DUT Instantiation
+    // Hardware Signals and Interface Instantiation
     // ==========================================================================
     logic hclk;
     logic hresetn;
 
-    // Clock and Reset generation
-    initial begin hclk = 1'b0; forever #5 hclk = ~hclk; end
-    initial begin hresetn = 1'b0; #20 hresetn = 1'b1; end
+    // Clock Generation (100MHz)
+    initial begin
+        hclk = 1'b0;
+        forever #5 hclk = ~hclk; 
+    end
 
-    // Physical Interface instantiation
-    ahb_if vif(.hclk(hclk), .hresetn(hresetn));
-    
-    // Design Under Test (DUT) instantiation
-    ahb_sram u_sram (
-        .hclk(hclk), 
-        .hresetn(hresetn), 
-        .haddr(vif.haddr), 
-        .hwrite(vif.hwrite),
-        .htrans(vif.htrans), 
-        .hsize(vif.hsize), 
-        .hburst(vif.hburst), 
-        .hwdata(vif.hwdata), 
-        .hrdata(vif.hrdata), 
-        .hready(vif.hready), 
-        .hresp(vif.hresp)
+    // Reset Generation (Active Low)
+    initial begin
+        hresetn = 1'b0;
+        #20 hresetn = 1'b1;      // Release reset after 20ns
+    end
+
+    // Instantiate the Physical Interface
+    ahb_if ahb_if_inst(
+        .hclk(hclk),
+        .hresetn(hresetn)
     );
 
     // ==========================================================================
-    // OOP Verification Environment Execution
+    // DUT (Design Under Test) Instantiation 
     // ==========================================================================
-    
-    // Single environment handle
-    ahb_env env; 
+    //
+    // [REMINDER FOR MYSELF - DUT INTEGRATION]
+    // Currently using a "Dummy Slave" (hready = 1) just to verify if the 
+    // Master (Driver) can successfully drive waveforms without deadlocking.
+    // 
+    // ACTION: Once the Master works, delete the STEP 1 'assign' lines, 
+    // and uncomment STEP 2 to connect the real AHB SRAM!
+    // ==========================================================================
 
+    // --- STEP 1: Dummy Slave (For Initial Bring-up Today) ---
+    assign ahb_if_inst.hready = 1'b1;  // Force ready to prevent Driver deadlock
+    assign ahb_if_inst.hresp  = 2'b00; // Force OKAY response
+
+    // --- STEP 2: Real DUT (Uncomment this when ready to test SRAM) ---
+    /*
+    ahb_sram u_sram (
+        .hclk(hclk),
+        .hresetn(hresetn),
+        .haddr(ahb_if_inst.haddr),
+        .hwrite(ahb_if_inst.hwrite),
+        .htrans(ahb_if_inst.htrans),
+        .hsize(ahb_if_inst.hsize),
+        .hburst(ahb_if_inst.hburst),
+        .hwdata(ahb_if_inst.hwdata),
+        .hrdata(ahb_if_inst.hrdata),
+        .hready(ahb_if_inst.hready),
+        .hresp(ahb_if_inst.hresp)
+    );
+    */
+
+    // ==========================================================================
+    // OOP Verification Environment Execution (UVM Kick-off)
+    // ==========================================================================
     initial begin
-        // Initialize bus signals
-        vif.haddr  = 32'h0; 
-        vif.hwrite = 1'b0; 
-        vif.htrans = 2'b00; 
-        vif.hwdata = 32'h0;
+        // [Task 1: Pass Virtual Interface to UVM]
+        // Store the physical interface in the UVM config DB.
+        // The UVM Driver will fetch this later using 'get'.
+        uvm_config_db#(virtual ahb_if)::set(null, "*", "vif", ahb_if_inst);
 
-        // [Build Phase] Instantiate the environment and pass the virtual interface
-        env = new(vif); 
-
-        // Wait for hardware reset to complete before driving anything
-        wait(hresetn == 1'b1);
-        @(posedge hclk);
-
-        // [Run Phase] Kick off the entire verification environment
-        env.run();
-
-        // =========================================================
-        // Drain Time: Prevent simulation from exiting prematurely
-        // =========================================================
-        
-        // 1. Wait until the Generator has pushed everything and the Driver has fetched it all
-        wait(env.mbx.num() == 0);
-
-        // 2. Add extra time for the Driver to finish driving the bus, 
-        //    the Monitor to sample, and the Scoreboard to compare the final transactions.
-        #500; 
-        
-        // =========================================================
-
-        // [Report Phase] Print final verification results
-        env.report();
-        
-        $display("[%0t] [TB_TOP] Simulation Finished.", $time);
-        $finish;
+        // [Task 2: Start UVM Phases]
+        // Empty parentheses. The test name is passed from run.sh via +UVM_TESTNAME
+        // This single command handles Build, Run, Drain, Report, and Finish automatically.
+        run_test(); 
     end
+
 endmodule

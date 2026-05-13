@@ -1,65 +1,43 @@
 // ==============================================================================
 // File        : vip/ahb_env.sv
-// Description : Top-level Environment class. Responsible for instantiating,
-//               connecting, and running all verification components (Agents & Checkers).
+// Description : AHB Environment - Contains Agents and Scoreboard.
 // ==============================================================================
 
-class ahb_env;
-    // ---------------------------------------------------------
-    // Component and Resource Declarations
-    // ---------------------------------------------------------
-    ahb_generator  gen;
-    ahb_driver     driver;
-    ahb_monitor    mon;
-    ahb_scoreboard scb;
+class ahb_env extends uvm_env;
     
-    // Mailboxes for inter-component communication (TLM precursors)
-    mailbox #(ahb_transaction) mbx;
-    mailbox #(ahb_transaction) mon_mbx;
-    
-    // Virtual interface handle for DUT interaction
-    virtual ahb_if vif;
+    // 1. Factory Registration
+    `uvm_component_utils(ahb_env)
 
-    // ---------------------------------------------------------
-    // Build Phase: Object Instantiation and Connection
-    // ---------------------------------------------------------
-    function new(virtual ahb_if vif);
-        this.vif = vif;
-        
-        // 1. Construct mailboxes
-        mbx     = new();
-        mon_mbx = new();
-        
-        // 2. Instantiate components and pass required handles
-        gen    = new(mbx);
-        driver = new(vif, mbx);
-        mon    = new(vif, mon_mbx);
-        scb    = new(mon_mbx);
+    // 2. Declare sub-components (Only Agent for now)
+    ahb_agent agt;
+    
+    // (We will add: ahb_scoreboard scb; here tomorrow)
+
+    // 3. Constructor
+    function new(string name = "ahb_env", uvm_component parent = null);
+        super.new(name, parent);
     endfunction
 
-    // ---------------------------------------------------------
-    // Run Phase: Component Execution
-    // ---------------------------------------------------------
-    task run();
-        $display("\n=======================================================");
-        $display("[%0t] [ENV] Starting Verification Environment...", $time);
-        $display("=======================================================\n");
+    // 4. Build Phase: Top-Down Construction
+    virtual function void build_phase(uvm_phase phase);
+        super.build_phase(phase);
         
-        // Launch all component run tasks concurrently
-        fork
-            gen.run(15);  // Generate 15 randomized transactions
-            driver.run(); 
-            mon.run();
-            scb.run();
-        join_any
-    endtask
-
-    // ---------------------------------------------------------
-    // Report Phase: Final Summary
-    // ---------------------------------------------------------
-    function void report();
-        // Delegate reporting duty to the scoreboard
-        scb.report(); 
+        `uvm_info("ENV", "Environment building the Agent...", UVM_LOW)
+        
+        // Create the Agent instance
+        // This is where 'env' builds its 'agt'
+        agt = ahb_agent::type_id::create("agt", this);
+        
+        // (We will create the scoreboard here tomorrow)
     endfunction
-    
+
+    // 5. Connect Phase: Bottom-Up Connection
+    virtual function void connect_phase(uvm_phase phase);
+        super.connect_phase(phase);
+        
+        // No connections needed in Env today! 
+        // The internal connection (Driver <-> Sequencer) is handled inside the Agent.
+        // Tomorrow, we will use this phase to connect the Agent's Monitor to the Scoreboard.
+    endfunction
+
 endclass
