@@ -12,6 +12,7 @@ module tb_top;
     import uvm_pkg::*;
     `include "uvm_macros.svh"
     import ahb_pkg::*;
+    `include "ahb_test.sv"
 
     // ==========================================================================
     // Hardware Signals and Interface Instantiation
@@ -49,12 +50,7 @@ module tb_top;
     // and uncomment STEP 2 to connect the real AHB SRAM!
     // ==========================================================================
 
-    // --- STEP 1: Dummy Slave (For Initial Bring-up Today) ---
-    assign ahb_if_inst.hready = 1'b1;  // Force ready to prevent Driver deadlock
-    assign ahb_if_inst.hresp  = 2'b00; // Force OKAY response
-
-    // --- STEP 2: Real DUT (Uncomment this when ready to test SRAM) ---
-    /*
+    //DUT (Uncomment this when ready to test SRAM) ---
     ahb_sram u_sram (
         .hclk(hclk),
         .hresetn(hresetn),
@@ -68,7 +64,6 @@ module tb_top;
         .hready(ahb_if_inst.hready),
         .hresp(ahb_if_inst.hresp)
     );
-    */
 
     // ==========================================================================
     // OOP Verification Environment Execution (UVM Kick-off)

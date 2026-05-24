@@ -1,44 +1,80 @@
 // ==============================================================================
 // File        : vip/ahb_sequence.sv
-// Description : Base Sequence for AHB VIP. Generates random AHB transactions.
+// Description : UVM AHB Base Sequence (License-Free Randomization Version)
+//               Generates a simple WRITE followed by a READ to the same address.
+//               Uses $urandom to bypass constraint solver license limitations.
 // ==============================================================================
 
 class ahb_base_seq extends uvm_sequence #(ahb_transaction);
 
-    // Factory Registration (Sequence is an object, so no 'parent' argument)
+    // ==========================================================================
+    // 1. Factory Registration
+    // ==========================================================================
     `uvm_object_utils(ahb_base_seq)
 
+    // ==========================================================================
+    // 2. Constructor
+    // ==========================================================================
     function new(string name = "ahb_base_seq");
         super.new(name);
     endfunction
 
-    // All stimulus generation logic goes into the body() task
+    // ==========================================================================
+    // 3. Body Task (The main execution thread of the sequence)
+    // ==========================================================================
     virtual task body();
-        `uvm_info("SEQ", "Starting AHB Base Sequence...", UVM_LOW)
+        ahb_transaction req;
+        bit [31:0] target_addr;
 
-        repeat(5) begin
-            // 1. Create a transaction via Factory
-            req = ahb_transaction::type_id::create("req");
-            
-            // 2. Request Sequencer to prepare for sending
-            start_item(req);
-            
-            // 3. Randomize the transaction payload
-            // comment out cause free license doesn't support
-            /* if (!req.randomize()) begin
-                `uvm_error("SEQ", "Randomization failed!")
-            end */
-            req.haddr  = $urandom_range(32'h0000_1FFF, 32'h0000_0000);
-            req.hwrite = $urandom % 2;                                 
-            req.hwdata = $urandom;
-            req.hsize  = $urandom_range(2, 0);
-            req.hburst = $urandom_range(7, 0);
+        `uvm_info("SEQ", "Starting Write-then-Read Sequence (Manual Random)...", UVM_LOW)
 
-                        // 4. Send to Driver and wait for completion
-            finish_item(req);
-        end
+        // ---------------------------------------------------------
+        // Transaction 1: WRITE Operation
+        // ---------------------------------------------------------
+        req = ahb_transaction::type_id::create("req");
         
-        `uvm_info("SEQ", "Finished AHB Base Sequence.", UVM_LOW)
+        // Step 1: Request permission from the sequencer
+        start_item(req); 
+        
+        // Step 2: Manual assignment to bypass randomize() licensing restrictions
+        // Force the address to be 4-byte aligned (Word alignment)
+        req.haddr     = $urandom_range(32'h0000_0000, 32'h0000_FFFF) & 32'hFFFF_FFFC; 
+        req.hwrite    = 1'b1;         // 1 = WRITE
+        req.hsize     = 3'b010;       // 32-bit (Word transmission)
+        req.hburst    = 3'b000;       // SINGLE burst mode
+        
+        // Allocate the dynamic array for data phase and inject random data
+        req.hwdata    = new[1];       
+        req.hwdata[0] = $urandom;    
+        
+        // Save the address to ensure the subsequent READ targets the same location
+        target_addr = req.haddr;   
+        
+        // Step 3: Send to driver and wait for handshake completion
+        finish_item(req); 
+        
+        `uvm_info("SEQ", $sformatf("Completed WRITE to addr: 0x%0h, Data: 0x%0h", target_addr, req.hwdata[0]), UVM_LOW)
+
+        // ---------------------------------------------------------
+        // Transaction 2: READ Operation (To the EXACT SAME address)
+        // ---------------------------------------------------------
+        req = ahb_transaction::type_id::create("req");
+        
+        // Step 1: Request permission again
+        start_item(req);
+        
+        // Step 2: Manual assignment for READ transaction
+        req.haddr  = target_addr;    // Target the exact same address
+        req.hwrite = 1'b0;           // 0 = READ
+        req.hsize  = 3'b010;         // 32-bit (Word transmission)
+        req.hburst = 3'b000;         // SINGLE burst mode
+        // Note: hwdata is driven by the Slave/Driver during READ, so no assignment needed here
+        
+        // Step 3: Send to driver
+        finish_item(req);
+        
+        `uvm_info("SEQ", $sformatf("Completed READ from addr: 0x%0h", target_addr), UVM_LOW)
+
     endtask
 
 endclass

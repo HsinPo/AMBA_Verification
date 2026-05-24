@@ -8,8 +8,9 @@ class ahb_env extends uvm_env;
     // 1. Factory Registration
     `uvm_component_utils(ahb_env)
 
-    // 2. Declare sub-components (Only Agent for now)
+    // 2. Declare sub-components
     ahb_agent agt;
+    ahb_scoreboard scb;
     
     // (We will add: ahb_scoreboard scb; here tomorrow)
 
@@ -24,20 +25,15 @@ class ahb_env extends uvm_env;
         
         `uvm_info("ENV", "Environment building the Agent...", UVM_LOW)
         
-        // Create the Agent instance
-        // This is where 'env' builds its 'agt'
+        // Create the instance
         agt = ahb_agent::type_id::create("agt", this);
-        
-        // (We will create the scoreboard here tomorrow)
+        scb = ahb_scoreboard:: type_id::create("scb", this);       
     endfunction
 
     // 5. Connect Phase: Bottom-Up Connection
     virtual function void connect_phase(uvm_phase phase);
         super.connect_phase(phase);
-        
-        // No connections needed in Env today! 
-        // The internal connection (Driver <-> Sequencer) is handled inside the Agent.
-        // Tomorrow, we will use this phase to connect the Agent's Monitor to the Scoreboard.
+        agt.ap.connect(scb.ap_export);
     endfunction
 
 endclass
