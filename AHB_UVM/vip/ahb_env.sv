@@ -11,8 +11,6 @@ class ahb_env extends uvm_env;
     // 2. Declare sub-components
     ahb_agent agt;
     ahb_scoreboard scb;
-    
-    // (We will add: ahb_scoreboard scb; here tomorrow)
 
     // 3. Constructor
     function new(string name = "ahb_env", uvm_component parent = null);
